@@ -1,4 +1,4 @@
-# 8085_stopwatch
+# 8085 Stopwatch
 Programa feito em Assembly 8085 de um cronômetro.\
 Este programa foi feito para uma tarefa da disciplina Organização e Arquitetura de Computadores I. Segue a descrição da tarefa:
 
@@ -74,20 +74,24 @@ hexadecimal que deverá estar na porta de saída para representar cada dígito d
     Ou seja, precisamos de 2 milhões de T-states para causar um delay de 1 segundo.\
     Usando a subrotina
     ```assembly
-            LXI B,F423H     ; 10 T-states
-            NOP             ; 4 T-states
-            NOP             ; 4 T-states
-            NOP             ; 4 T-states
-            NOP             ; 4 T-states
-            NOP             ; 4 T-states
-            NOP             ; 4 T-states
-    loop:   NOP             ; 4 T-states
-            NOP             ; 4 T-states
-            NOP             ; 4 T-states
-            NOP             ; 4 T-states
-            DCX B           ; 6 T-states
-            JNZ loop        ; 10 / 7 T-states
+    delay1segundo:
+        MVI H, FFH      ; 7 T-states
+    delay2:
+        MVI L, FFH      ; 7 T-states
+    delay1:
+        NOP             ; 4 T-states
+        NOP             ; 4 T-states
+        NOP             ; 4 T-states
+        NOP             ; 4 T-states
+        NOP             ; 4 T-states
+        DCR L           ; 4 T-states
+        JNZ delay1      ; 10 / 7 T-states
+        DCR H           ; 4 T-states
+        JNZ delay2      ; 10 / 7 T-states
     ```
-    sendo $F423H=62499_{10}$, obtemos uma quantidade de T-states próxima do objetivo: 
-    
-    $$10+4+4+4+4+4+4+(4+4+4+4+6+10)\cdot62499-3=1999999 \text{ T-states}$$
+    obtemos uma quantidade de T-states próxima do objetivo: 
+
+    $7+(7+(4+4+4+4+4+4+10)\cdot255-3+4+10)\cdot255-3=2215444 \text{ T-states}$, o que equivale a 1.107722 segundo.
+
+
+O valor salvo na coordenada 0000H vai ser o algarismo da unidade do minuto. Para salvar essa informação, uso do fato que cada loop do delay termina com o par HL em 0000H, então cada vez que completamos 1 minuto podemos adicionar +1 a essa coordenada. 
