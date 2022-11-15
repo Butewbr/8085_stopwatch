@@ -63,5 +63,31 @@ hexadecimal que deverá estar na porta de saída para representar cada dígito d
         * Não é necessário fazer nenhum tipo de consideração caso o valor nas portas de entrada seja inválido.
     * Quando a interrupção RST 5.5 for acionada o cronômetro deverá parar e zerar todos os dígitos.
     * Quando o cronômetro progressivo chegar em 59:59 ou o regressivo chegar em 00:00 fica a critério do programador decidir o que fazer (parar o cronômetro ou recomeçar a contagem).
+5. Antes de atualizar o dígito da unidade de segundo, o programa deverá passar por uma sub-rotina que insere um delay de, aproximadamente, 1 ms.
+    * Para fins de cálculo, considere um clock com frequência de 2 MHz.
 
 ## Resumo dos passos:
+1. Calculando o delay de 1 segundo:
+    $$T=\frac{1}{2\cdot10^{6}}$$
+    $$x\cdot\frac{1}{2\cdot10^6}=1$$
+    $$x=2\cdot10^6$$
+    Ou seja, precisamos de 2 milhões de T-states para causar um delay de 1 segundo.\
+    Usando a subrotina
+    ```assembly
+            LXI B,F423H     ; 10 T-states
+            NOP             ; 4 T-states
+            NOP             ; 4 T-states
+            NOP             ; 4 T-states
+            NOP             ; 4 T-states
+            NOP             ; 4 T-states
+            NOP             ; 4 T-states
+    loop:   NOP             ; 4 T-states
+            NOP             ; 4 T-states
+            NOP             ; 4 T-states
+            NOP             ; 4 T-states
+            DCX B           ; 6 T-states
+            JNZ loop        ; 10 / 7 T-states
+    ```
+    sendo $F423H=62499_{10}$, obtemos uma quantidade de T-states próxima do objetivo: 
+    
+    $$10+4+4+4+4+4+4+(4+4+4+4+6+10)\cdot62499-3=1999999 \text{ T-states}$$
