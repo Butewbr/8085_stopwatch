@@ -23,11 +23,12 @@
 ;       * Quando o cronômetro progressivo chegar em 59:59 ou o regressivo chegar em 00:00 fica a critério do programador decidir o que fazer (parar o cronômetro ou recomeçar a contagem).
 ;   5. Antes de atualizar o dígito da unidade de segundo, o programa deverá passar por uma sub-rotina que insere um delay de, aproximadamente, 1 ms.
 ;       * Para fins de cálculo, considere um clock com frequência de 2 MHz.
-;
+; 
 ; Resumo dos passos:
 
 .define
     EndDigito A000h
+    StartDigito A009h
 	digit0 77h	        ; Valor hex para o display mostrar o digit 0
 	digit1 44h		    ; Valor hex para o display mostrar o digit 1
 	digit2 3Eh		    ; Valor hex para o display mostrar o digit 2
@@ -44,8 +45,34 @@
 	DB digit0, digit1, digit2, digit3, digit4
 	DB digit5, digit6, digit7, digit8, digit9	
 
+.org 0000H
+    JMP zerar           ; programa começa colocando 00:00
+
+stdby:
+    JMP stdby           ; pula para si mesmo infinitamente
+
+check:
+    EI
+    LXI H, 0A03H        ; apontamos M para a coordenada 0A03H
+    MVI A, 00H          ; A = 0
+    CMP M               ; comparamos M com A
+    JZ start            ; se M = 0, significa que o cronômetro não estava rodando, então, começamos
+    MVI M, 00H          ; se não for zero, o cronômetro estava rodando, então paramos e colocamos M = 0 na coordenada para indicar que a próxima ativação da interrupção TRAP é para começar
+    JMP stdby           ; pula para o standby
+
+.org 0024H              ; quando o TRAP for ativado, começar a contagem
+    JMP check           ; tive que criar uma label para a checagem ao invés de fazer aqui porque as instruções chegavam até a coordenada 002CH, conflitando com o código do RST 5.5
+
 .org 002CH              ; o programa zera tudo na coordenada 002CH (do RST 5.5) e para
+    JMP zerar
+
+.org 003CH              ; programa para o RST 7.5
+    JMP check7          ; pulamos para checagem de se o cronômetro está ou não ligado
+
+zerar:
     EI                  ; reabilitar interruptores
+    LXI H, 0A03H        ; apontamos M para a coordenada 0A03H
+    MVI M, 00H          ; indicamos que o cronômetro parou
     MVI A, 77H          ; colocamos o dígito 0 do display de 7 segmentos
     OUT 00H             ; salvamos o 0 em todos os dígitos do display
     OUT 01H             ; salvamos o 0 em todos os dígitos do display
@@ -70,11 +97,10 @@ delay1:
     NOP
     NOP
     NOP
-    NOP
     DCR L
     JNZ delay1
     DCR H
-    JNZ delay2      
+    JNZ delay2
 
 segunid:
     LDAX B		        ; colocamos no acumulador o valor na coordenada de B
@@ -86,20 +112,18 @@ segunid:
     JMP delay
 
 segdez:
+	LDAX D
+	CPI 6BH		        ; Comparar com o valor hex do d�gito 6
+	JZ minunid		
     LXI B, EndDigito	; Resetar o endere�o apontado pelo par BC
 	LDAX B	
 	OUT 03H		
-	LDAX D		
-	CPI 6BH		        ; Comparar com o valor hex do d�gito 9
-	JZ minunid		
 	INX D			    ; Par DE apontar para o pr�ximo d�gito
 	LDAX D		
 	OUT 02H		
     JMP delay
 
-
 minunid:
-                        ; o valor salvo em 0000H vai ser o valor da unidade do minuto.
     MOV A, M            ; A = M
     CPI 09H             ; comparamos com 09H
     JZ mindez
@@ -116,7 +140,10 @@ qtmin:
 secres:
     LXI D, EndDigito    ; Resetar o endere�o apontado pelo par DE
 	LDAX D		
-	OUT 02h		
+	OUT 02h
+    LXI B, EndDigito
+    LDAX B
+    OUT 03H
     JMP delay
 
 mindez:
@@ -140,13 +167,99 @@ qtdmin:
     OUT 00H
     JMP secres
 
-; hour:
-;     MVI A, 7BH
-;     OUT 00H
-;     MVI A, 77H
-;     OUT 01H
-;     OUT 02H
-;     OUT 03H
 
-stdby:
-    JMP stdby
+start:
+    MVI M, 01H          ; sinalizamos que o cronômetro está ligado
+    JMP delay
+
+check7:
+    EI
+    LXI H, 0A03H        ; apontamos M para a coordenada 0A03H
+    MVI A, 00H          ; A = 0
+    CMP M               ; comparamos M com A
+    JZ reverse            ; se M = 0, significa que o cronômetro não estava rodando, então, começamos
+    MVI M, 00H          ; se não for zero, o cronômetro estava rodando, então paramos e colocamos M = 0 na coordenada para indicar que a próxima ativação da interrupção TRAP é para começar
+    JMP stdby           ; pula para o standby
+
+reverse:
+    MVI M, 01H          ; sinalizamos que o cronômetro está ligado
+    JMP delay7
+
+delay7:
+    MVI H, 10H
+delay72:
+    MVI L, 70H
+delay71:
+    NOP
+    NOP
+    NOP
+    NOP
+    DCR L
+    JNZ delay71
+    DCR H
+    JNZ delay72
+
+segunid7:
+    LDAX B		        ; colocamos no acumulador o valor na coordenada de B
+    CPI 77H	            ; Comparar com o valor hex para 0
+    JZ segdez7	        ; Se zero, decrementar o d�gito da dezena
+	DCX B			    ; Par BC apontar para o  dígito anterior
+	LDAX B		
+	OUT 03H		
+    JMP delay7
+
+segdez7:
+	LDAX D
+	CPI 77H		        ; Comparar com o valor hex do d�gito 0
+	JZ minunid7		
+    LXI B, StartDigito	; Resetar o endere�o apontado pelo par BC
+	LDAX B	
+	OUT 03H		
+	DCX D			    ; Par DE apontar para o dígito anterior
+	LDAX D		
+	OUT 02H		
+    JMP delay7
+
+minunid7:
+    MOV A, M            ; A = M
+    CPI 00H             ; comparamos com 00H
+    JZ mindez7
+    DCR M               ; decrementa o que tá em 0000H
+    MOV A, M            ; bota o valor de M em A
+    LXI H, EndDigito    ; apontamos HL para os dígitos
+qtmin7:
+    INX H               ; caminhamos entre os dígitos de 7 segmentos até chegar no número que precisamos
+    DCR A               ; A-1
+    JNZ qtmin7          ; se for zero, estamos no algarismo certo, senão, continuamos caminhando
+    MOV A, M            ; movemos o valor HEX que equivale ao algarismo para o acumulador
+    OUT 01H             ; salvamos na porta de saída da unidade do minuto
+
+secres7:
+    LXI D, StartDigito    ; Resetar o endere�o apontado pelo par DE
+	LDAX D		
+	OUT 02h
+    LXI B, StartDigito
+    LDAX B
+    OUT 03H
+    JMP delay7
+
+mindez7:
+    INX H               ; apontamos HL pra 0001H (onde guardamos o valor das dezenas de minutos)
+    MOV A, M            ; A = valor das dezenas
+    CPI 77H             ; comparamos com 0 para ver se chegamos em 0 min
+    JZ stdby            ; se M=5, chegamos em 1h
+    DCR M               ; decrescemos em 1 o valor das dezenas
+    DCX H               ; voltamos ao valor da unidade de minuto
+    MVI M, 09H          ; colocamos a unidade dos minutos em 9
+    MVI A, 4FH          ; A = 4FH (9 no display)
+    OUT 01H             ; zeramos no display a unidade de minuto
+    INX H               ; apontamos HL para 0001H (onde guardaremos o valor das dezenas de minutos)
+    MOV A, M            ; movemos a quantidade da dezena de minuto ao acumulador
+    LXI H, EndDigito
+qtdmin7:
+    INX H
+    DCR A
+    JNZ qtdmin7
+    MOV A, M
+    OUT 00H
+    JMP secres7
