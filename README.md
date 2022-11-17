@@ -147,7 +147,10 @@ Que é exatamente 1 ms.
 ## Cronômetro
 Para criar a funcionalidade do cronômetro, foram definidas variáveis para auxiliar na busca dos dígitos do display de 7 segmentos. Usando `.define` no início do programa, foram definidas veriáveis para cada dígito e seu respectivo valor HEX, assim como endereços chave de funcionamento do programa. Os dígitos, então, são salvos entre os endereços A000H e A009H a partir do comando `DB`.
 ### Segundos
-
+#### Unidade
+Para a contagem da unidade dos segundos, o par de registradores BC foi utilizado. O par apontará para o endereço em que o respectivo dígito HEX do display de 7 segmentos condiz com o valor da unidade do segundo. Por exemplo: se o cronômetro marca 2 segundos na unidade, o par de registradores BC terá o valor A002H, referente ao endereço do dígito HEX 3EH (2 no display).\
+A cada passagem no loop, faz-se a comparação do valor da coordenada indicada pelo par BC com o valor 4FH (dígito 9 no display), para verificiar se o valor máximo da unidade foi atingido. Se foi, o programa adiciona +1 à dezena dos segundos e zera o valor da unidade, colocando o valor de BC como A000H.
+#### Dezena
 
 ### Minutos
 O valor salvo na coordenada 0000H vai ser o algarismo da unidade do minuto. Usando do fato que cada loop do delay termina com o par HL em 0000H, posso salvar essa informação adicionando +1 ao par cada vez que 1 minuto for completado. Assim, podemos acessar o valor através da memória M.
