@@ -29,6 +29,7 @@
 .define
     EndDigito A000h
     StartDigito A009h
+    DigitoCinco A005h
 	digit0 77h	        ; Valor hex para o display mostrar o digit 0
 	digit1 44h		    ; Valor hex para o display mostrar o digit 1
 	digit2 3Eh		    ; Valor hex para o display mostrar o digit 2
@@ -39,7 +40,6 @@
 	digit7 46h		    ; Valor hex para o display mostrar o digit 7
 	digit8 7Fh		    ; Valor hex para o display mostrar o digit 8
 	digit9 4Fh		    ; Valor hex para o display mostrar o digit 9
-    delayv F423H        ; valor do delay
 
 .data EndDigito		    ; Salvando os valores hex no endereço indicado
 	DB digit0, digit1, digit2, digit3, digit4
@@ -48,6 +48,9 @@
 .org 0000H
     JMP zerar           ; programa começa colocando 00:00
 
+turnoff:
+    LXI H, 0A03H        ; apontamos pro sinalizador de on/off
+    MVI M, 00H          ; sinalizamos que o cronômetro está desligado
 stdby:
     JMP stdby           ; pula para si mesmo infinitamente
 
@@ -66,14 +69,15 @@ check:
 .org 002CH              ; o programa zera tudo na coordenada 002CH (do RST 5.5) e para
     JMP zerar
 
+.org 0034H              ; o programa lê os valores dos cronômetros na coordenada 0034H (do RST 6.5)
+    JMP read
+
 .org 003CH              ; programa para o RST 7.5
     JMP check7          ; pulamos para checagem de se o cronômetro está ou não ligado
 
 zerar:
     EI                  ; reabilitar interruptores
-    LXI H, 0A03H        ; apontamos M para a coordenada 0A03H
-    MVI M, 00H          ; indicamos que o cronômetro parou
-    MVI A, 77H          ; colocamos o dígito 0 do display de 7 segmentos
+    MVI A, digit0       ; colocamos o dígito 0 do display de 7 segmentos
     OUT 00H             ; salvamos o 0 em todos os dígitos do display
     OUT 01H             ; salvamos o 0 em todos os dígitos do display
     OUT 02H             ; salvamos o 0 em todos os dígitos do display
@@ -86,12 +90,12 @@ zerar:
     STA 0001H           ; resetando dezena de minutos
     
     LDA EndDigito
-    JMP stdby
+    JMP turnoff
 
 delay:
-    MVI H, 10H
+    MVI H, 20H
 delay2:
-    MVI L, 02H
+    MVI L, 20H
 delay1:
     NOP
     NOP
@@ -104,16 +108,27 @@ delay1:
 
 segunid:
     LDAX B		        ; colocamos no acumulador o valor na coordenada de B
-    CPI 4FH	            ; Comparar com o valor hex para 9
+    CPI digit9          ; Comparar com o valor hex para 9
     JZ segdez	        ; Se zero, incrementar o d�gito da dezena
 	INX B			    ; Par BC apontar para o pr�ximo digito
+
+    MVI A, 6EH          ; para o delay de 1 ms:
+    minidelay:  
+    DCR A
+    NOP
+    JNZ minidelay
+    NOP
+    NOP
+    NOP
+    NOP
+
 	LDAX B		
 	OUT 03H		
     JMP delay
 
 segdez:
 	LDAX D
-	CPI 6BH		        ; Comparar com o valor hex do d�gito 6
+	CPI digit5	        ; Comparar com o valor hex do d�gito 5
 	JZ minunid		
     LXI B, EndDigito	; Resetar o endere�o apontado pelo par BC
 	LDAX B	
@@ -150,11 +165,11 @@ mindez:
     INX H               ; apontamos HL pra 0001H (onde guardamos o valor das dezenas de minutos)
     MOV A, M            ; A = valor das dezenas
     CPI 05H             ; comparamos com 5 pra ver se chegamos em 60 min
-    JZ stdby             ; se M=5, chegamos em 1h
+    JZ turnoff             ; se M=5, chegamos em 1h
     INR M               ; acrescentamos em 1 o valor das dezenas
     DCX H               ; voltamos ao valor da unidade de minuto
     MVI M, 00H          ; zeramos a unidade dos minutos
-    MVI A, 77H          ; A = 00H
+    MVI A, digit0       ; A = 00H
     OUT 01H             ; zeramos no display a unidade de minuto
     INX H               ; apontamos HL para 0001H (onde guardaremos o valor das dezenas de minutos)
     MOV A, M            ; movemos a quantidade da dezena de minuto ao acumulador
@@ -186,9 +201,9 @@ reverse:
     JMP delay7
 
 delay7:
-    MVI H, 10H
+    MVI H, 20H
 delay72:
-    MVI L, 70H
+    MVI L, 20H
 delay71:
     NOP
     NOP
@@ -201,17 +216,28 @@ delay71:
 
 segunid7:
     LDAX B		        ; colocamos no acumulador o valor na coordenada de B
-    CPI 77H	            ; Comparar com o valor hex para 0
+    CPI digit0          ; Comparar com o valor hex para 0
     JZ segdez7	        ; Se zero, decrementar o d�gito da dezena
 	DCX B			    ; Par BC apontar para o  dígito anterior
-	LDAX B		
+
+    MVI A, 6EH          ; para o delay de 1 ms
+minidelay7:  
+    DCR A
+    NOP
+    JNZ minidelay7
+    NOP
+    NOP
+    NOP
+    NOP
+
+    LDAX B		
 	OUT 03H		
     JMP delay7
 
 segdez7:
 	LDAX D
-	CPI 77H		        ; Comparar com o valor hex do d�gito 0
-	JZ minunid7		
+	CPI digit0	        ; Comparar com o valor hex do d�gito 0
+	JZ minunid7		    ; se for zero decrementar o dígito do minuto
     LXI B, StartDigito	; Resetar o endere�o apontado pelo par BC
 	LDAX B	
 	OUT 03H		
@@ -223,10 +249,15 @@ segdez7:
 minunid7:
     MOV A, M            ; A = M
     CPI 00H             ; comparamos com 00H
-    JZ mindez7
+    JZ mindez7          ; se for zero decrementamos o dígito da dezena
     DCR M               ; decrementa o que tá em 0000H
     MOV A, M            ; bota o valor de M em A
     LXI H, EndDigito    ; apontamos HL para os dígitos
+    CPI 00H             ; checamos se M agora é zero
+    JNZ qtmin7          ; se não for, salvamos os dígitos normalmente
+    MVI A, digit0       ; se for, colocamos 0 na unidade de minuto
+    OUT 01H
+    JMP secres7
 qtmin7:
     INX H               ; caminhamos entre os dígitos de 7 segmentos até chegar no número que precisamos
     DCR A               ; A-1
@@ -235,7 +266,7 @@ qtmin7:
     OUT 01H             ; salvamos na porta de saída da unidade do minuto
 
 secres7:
-    LXI D, StartDigito    ; Resetar o endere�o apontado pelo par DE
+    LXI D, DigitoCinco    ; Resetar o endere�o apontado pelo par DE
 	LDAX D		
 	OUT 02h
     LXI B, StartDigito
@@ -246,16 +277,21 @@ secres7:
 mindez7:
     INX H               ; apontamos HL pra 0001H (onde guardamos o valor das dezenas de minutos)
     MOV A, M            ; A = valor das dezenas
-    CPI 77H             ; comparamos com 0 para ver se chegamos em 0 min
-    JZ stdby            ; se M=5, chegamos em 1h
+    CPI 00H             ; comparamos com 0 para ver se chegamos em 0 min
+    JZ turnoff           ; se M=0, chegamos em 00:00
     DCR M               ; decrescemos em 1 o valor das dezenas
     DCX H               ; voltamos ao valor da unidade de minuto
     MVI M, 09H          ; colocamos a unidade dos minutos em 9
-    MVI A, 4FH          ; A = 4FH (9 no display)
-    OUT 01H             ; zeramos no display a unidade de minuto
+    MVI A, digit9       ; A = 4FH (9 no display)
+    OUT 01H             ; salvamos no display a unidade de minuto
     INX H               ; apontamos HL para 0001H (onde guardaremos o valor das dezenas de minutos)
-    MOV A, M            ; movemos a quantidade da dezena de minuto ao acumulador
-    LXI H, EndDigito
+    MOV A, M            ; botamos o valor de M em A
+    LXI H, EndDigito    ; apontamos HL para os dígitos
+    CPI 00H             ; checamos se M agora é zero
+    JNZ qtdmin7          ; se não for, salvamos os dígitos normalmente
+    MVI A, digit0        ; se for, colocamos 0 na unidade de minuto
+    OUT 00H
+    JMP secres7          ; voltamos ao loop
 qtdmin7:
     INX H
     DCR A
@@ -263,3 +299,7 @@ qtdmin7:
     MOV A, M
     OUT 00H
     JMP secres7
+
+read:
+    JMP turnoff         ; a fazer
+    

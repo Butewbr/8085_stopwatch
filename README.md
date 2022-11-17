@@ -97,31 +97,57 @@ Quando uma interrupção ocorre, o Contador do Programa (PC) é atualizado confo
 
 Sempre que uma interrupção for executada, o microprocessador desabilita as interrupções por padrão, com exceção da TRAP. Para reabilitar, utiliza-se o comando `EI` (*Enable Interruptions*).
 
-## Resumo dos passos:
-1. Calculando o delay de 1 segundo:
-    $$T=\frac{1}{2\cdot10^{6}}$$
-    $$x\cdot\frac{1}{2\cdot10^6}=1$$
-    $$x=2\cdot10^6$$
-    Ou seja, precisamos de 2 milhões de T-states para causar um delay de 1 segundo.\
-    Usando a subrotina
-    ```assembly
-    delay1segundo:
-        MVI H, FFH      ; 7 T-states
-    delay2:
-        MVI L, FFH      ; 7 T-states
-    delay1:
-        NOP             ; 4 T-states
-        NOP             ; 4 T-states
-        NOP             ; 4 T-states
-        NOP             ; 4 T-states
-        DCR L           ; 4 T-states
-        JNZ delay1      ; 10 / 7 T-states
-        DCR H           ; 4 T-states
-        JNZ delay2      ; 10 / 7 T-states
-    ```
-    obtemos uma quantidade de T-states próxima do objetivo: 
+## Cálculo do Delay
+### Delay de 1 segundo:
+Calculando o período:
+$$T=\frac{1}{2\cdot10^{6}}$$
+$$x\cdot\frac{1}{2\cdot10^6}=1$$
+$$x=2\cdot10^6$$
+Ou seja, são necessários 2 milhões de T-states para causar um delay de 1 segundo.\
+Usando a subrotina
+```assembly
+delay:
+    MVI H, FFH      ; 7 T-states
+delay2:
+    MVI L, FFH      ; 7 T-states
+delay1:
+    NOP             ; 4 T-states
+    NOP             ; 4 T-states
+    NOP             ; 4 T-states
+    NOP             ; 4 T-states
+    DCR L           ; 4 T-states
+    JNZ delay1      ; 10 / 7 T-states
+    DCR H           ; 4 T-states
+    JNZ delay2      ; 10 / 7 T-states
+```
+obtém-se uma quantidade de T-states próxima do objetivo: \
+$7+(7+(4+4+4+4+4+10)\cdot255-3+4+10)\cdot255-3=1955344 \text{ T-states}$, o que equivale a 0.977672 segundos.
 
-    $7+(7+(4+4+4+4+4+10)\cdot255-3+4+10)\cdot255-3=1955344 \text{ T-states}$, o que equivale a 0.977672 segundos.
+
+### Delay de 1 ms
+Cálculo de quantos T-states são necessários para causar o *delay* de 1 ms:
+$$T=\frac{1}{2\cdot10^6}$$
+$$x\cdot\frac{1}{2\cdot10^6}=1\cdot10^{-3}$$
+$$x=2\cdot10^3$$
+Ou seja, 2000 T-states causam um *delay* de 1 ms para um *clock* de 2 MHz. Calculando a partir da sub-rotina
+```assembly
+        MVI A, 6EH  ; 7 T-states
+mDelay:  
+        DCR A       ; 4 T-states
+        NOP         ; 4 T-states
+        JNZ mDelay  ; 10 ou 7 T-states
+        NOP         ; 4 T-states
+        NOP         ; 4 T-states
+        NOP         ; 4 T-states
+        NOP         ; 4 T-states
+```
+obtém-se:
+$$7+[(4+4+10)\cdot110]-3+4+4+4+4=2000\text{ T-states}$$
+Que é exatamente 1 ms.
+## Cronômetro
+Para criar a funcionalidade do cronômetro, foram definidas variáveis para auxiliar na busca dos dígitos do display de 7 segmentos. Usando `.define` no início do programa, foram definidas veriáveis para cada dígito e seu respectivo valor HEX, assim como endereços chave de funcionamento do programa. Os dígitos, então, são salvos entre os endereços A000H e A009H a partir do comando `DB`.
+### Segundos
 
 
+### Minutos
 O valor salvo na coordenada 0000H vai ser o algarismo da unidade do minuto. Usando do fato que cada loop do delay termina com o par HL em 0000H, posso salvar essa informação adicionando +1 ao par cada vez que 1 minuto for completado. Assim, podemos acessar o valor através da memória M.
