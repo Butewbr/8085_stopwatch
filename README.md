@@ -7,7 +7,7 @@ Atividade:
 1. O cronômetro deverá exibir os dígitos no formato mm:ss, em que mm representam os dígitos de minutos (entre 00 e 59) e ss representam os dígitos de segundos (entre 00 e 59).
 2. Os dígitos devero ser exibidos no display de 7-segmentos. A tabela abaixo indica o valor
 hexadecimal que deverá estar na porta de saída para representar cada dígito decimal.
-    <div style="display: flex; justify-content: center;">
+    <center>
     <table>
     <tbody>
     <tr>
@@ -38,9 +38,9 @@ hexadecimal que deverá estar na porta de saída para representar cada dígito d
     <tr>
     </tbody>
     </table>
-    </div>
+    </center>
 3. Utilize as seguintes portas de saída para cada dígito:
-    <div style="display: flex; justify-content: center;">
+    <center>
     <table>
     <tr>
     <td>Dígito</td>
@@ -59,7 +59,7 @@ hexadecimal que deverá estar na porta de saída para representar cada dígito d
     <td>Dezena de Minuto</td> <td>00H</td>
     </tr>
     </table>
-    </div>
+    </center>
 4. Funções do cronômetro:
     * Se o cronômetro estiver parado a interrupção TRAP for acionada ento, o cronômetro deverá contar em forma progressiva. Se quando a interrupção TRAP for acionada o cronômetro já estiver funcionando, então o cronômetro deverá parar.
     * Se o cronômetro estiver parado a interrupção RST 7.5 for acionada então, o cronômetro deverá contar em forma regressiva. Se quando a interrupção RST 7.5 for acionada o cronômetro já estiver funcionando, então o cronômetro deverá parar.
