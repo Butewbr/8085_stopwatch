@@ -73,7 +73,7 @@ hexadecimal que deverá estar na porta de saída para representar cada dígito d
 ### Sobre Interrupções no 8085
 Quando uma interrupção ocorre, o Contador do Programa (PC) é atualizado conforme a tabela:
 
-<div style="display: flex; justify-content: center;">
+<center>
 <table>
 <tr><td><b>Interrupção</b></td><td><b>Endereço</b></td></tr>
 <tr>
@@ -93,7 +93,7 @@ Quando uma interrupção ocorre, o Contador do Programa (PC) é atualizado confo
 <td>003CH</td>
 </tr>
 </table>
-</div>
+</center>
 
 Sempre que uma interrupção for executada, o microprocessador desabilita as interrupções por padrão, com exceção da TRAP. Para reabilitar, utiliza-se o comando `EI` (*Enable Interruptions*).
 
