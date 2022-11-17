@@ -27,19 +27,19 @@
 ; Resumo dos passos:
 
 .define
-    EndDigito A000h
-    StartDigito A009h
-    DigitoCinco A005h
-	digit0 77h	        ; Valor hex para o display mostrar o digit 0
-	digit1 44h		    ; Valor hex para o display mostrar o digit 1
-	digit2 3Eh		    ; Valor hex para o display mostrar o digit 2
-	digit3 6Eh		    ; Valor hex para o display mostrar o digit 3
-	digit4 4Dh		    ; Valor hex para o display mostrar o digit 4
-	digit5 6Bh		    ; Valor hex para o display mostrar o digit 5
-	digit6 7Bh		    ; Valor hex para o display mostrar o digit 6
-	digit7 46h		    ; Valor hex para o display mostrar o digit 7
-	digit8 7Fh		    ; Valor hex para o display mostrar o digit 8
-	digit9 4Fh		    ; Valor hex para o display mostrar o digit 9
+    EndDigito A000H
+    StartDigito A009H
+    DigitoCinco A005H
+	digit0 77H	        ; Valor hex para o display mostrar o digit 0
+	digit1 44H		    ; Valor hex para o display mostrar o digit 1
+	digit2 3EH		    ; Valor hex para o display mostrar o digit 2
+	digit3 6EH		    ; Valor hex para o display mostrar o digit 3
+	digit4 4DH		    ; Valor hex para o display mostrar o digit 4
+	digit5 6BH		    ; Valor hex para o display mostrar o digit 5
+	digit6 7BH		    ; Valor hex para o display mostrar o digit 6
+	digit7 46H		    ; Valor hex para o display mostrar o digit 7
+	digit8 7FH		    ; Valor hex para o display mostrar o digit 8
+	digit9 4FH		    ; Valor hex para o display mostrar o digit 9
 
 .data EndDigito		    ; Salvando os valores hex no endereço indicado
 	DB digit0, digit1, digit2, digit3, digit4
@@ -70,7 +70,7 @@ check:
     JMP zerar
 
 .org 0034H              ; o programa lê os valores dos cronômetros na coordenada 0034H (do RST 6.5)
-    JMP read
+    JMP readUS
 
 .org 003CH              ; programa para o RST 7.5
     JMP check7          ; pulamos para checagem de se o cronômetro está ou não ligado
@@ -93,9 +93,9 @@ zerar:
     JMP turnoff
 
 delay:
-    MVI H, 20H
+    MVI H, FFH
 delay2:
-    MVI L, 20H
+    MVI L, FFH
 delay1:
     NOP
     NOP
@@ -201,9 +201,9 @@ reverse:
     JMP delay7
 
 delay7:
-    MVI H, 20H
+    MVI H, FFH
 delay72:
-    MVI L, 20H
+    MVI L, FFH
 delay71:
     NOP
     NOP
@@ -278,7 +278,7 @@ mindez7:
     INX H               ; apontamos HL pra 0001H (onde guardamos o valor das dezenas de minutos)
     MOV A, M            ; A = valor das dezenas
     CPI 00H             ; comparamos com 0 para ver se chegamos em 0 min
-    JZ turnoff           ; se M=0, chegamos em 00:00
+    JZ turnoff          ; se M=0, chegamos em 00:00
     DCR M               ; decrescemos em 1 o valor das dezenas
     DCX H               ; voltamos ao valor da unidade de minuto
     MVI M, 09H          ; colocamos a unidade dos minutos em 9
@@ -288,10 +288,10 @@ mindez7:
     MOV A, M            ; botamos o valor de M em A
     LXI H, EndDigito    ; apontamos HL para os dígitos
     CPI 00H             ; checamos se M agora é zero
-    JNZ qtdmin7          ; se não for, salvamos os dígitos normalmente
-    MVI A, digit0        ; se for, colocamos 0 na unidade de minuto
+    JNZ qtdmin7         ; se não for, salvamos os dígitos normalmente
+    MVI A, digit0       ; se for, colocamos 0 na unidade de minuto
     OUT 00H
-    JMP secres7          ; voltamos ao loop
+    JMP secres7         ; voltamos ao loop
 qtdmin7:
     INX H
     DCR A
@@ -300,6 +300,90 @@ qtdmin7:
     OUT 00H
     JMP secres7
 
-read:
-    JMP turnoff         ; a fazer
+readUS:
+    EI
+    IN 00H              ; lemos o que foi salvo na porta de entrada 00H
+    ANI 0FH             ; fazendo AND 0FH, salvamos no acumulador apenas o algarismo das unidades
+    CPI 00H             ; comparamos com 00H
+    JZ uS0              ; se for 0 salvamos 0
+    LXI B, EndDigito    ; apontamos BC para o dígito 0
+find_unitS:
+    INX B               ; vamos ao próximo dígito HEX
+    DCR A               ; decrementamos o acumulador
+    JNZ find_unitS       ; se não for zero, ainda temos que caminhar
+    LDAX B              ; salvamos no acumulador o valor HEX do número dado
+    OUT 03H
+
+readDS:
+    IN 00H              ; lemos o que foi salvo na porta de entrada 00H
+    ANI F0H             ; fazendo AND F0H, salvamos no acumulador apenas o algarismo das dezenas
+    RAR                 ; rotacionamos pra direita o acumulador 4x pra ter o número certo do algarismo
+    RAR
+    RAR
+    RAR
+    CPI 00H
+    JZ dS0
+    LXI D, EndDigito    ; apontamos BC para o dígito 0
+find_dezS:
+    INX D               ; vamos ao próximo dígito HEX
+    DCR A               ; decrementamos o acumulador
+    JNZ find_dezS       ; se não for zero, ainda temos que caminhar
+    LDAX D              ; salvamos no acumulador o valor HEX do número dado
+    OUT 02H
+
+readUM:    
+    IN 01H              ; lemos o que foi salvo na porta de entrada 01H
+    ANI 0FH             ; fazendo AND 0FH, salvamos no acumulador apenas o algarismo das unidades
+    LXI H, 0000H        ; direcionamos M para 0000H
+    MOV M, A            ; salvamos na memória o valor da unidade do minuto
+    CPI 00H             ; comparamos com 00H
+    JZ uM0              ; se for 0, zerar no display
+    LXI H, EndDigito    ; apontamos M para os dígitos HEX
+find_unitM:
+    INX H               ; caminhamos entre os dígitos de 7 segmentos até chegar no número que precisamos
+    DCR A               ; A-1
+    JNZ find_unitM          ; se for zero, estamos no algarismo certo, senão, continuamos caminhando
+    MOV A, M            ; movemos o valor HEX que equivale ao algarismo para o acumulador
+    OUT 01H             ; salvamos na porta de saída da unidade do minuto
+
+readDM:
+    IN 01H              ; lemos o que foi salvo na porta de entrada 01H
+    ANI F0H             ; fazendo AND F0H, salvamos no acumulador apenas o algarismo das dezenas
+    RAR                 ; rotacionamos pra direita o acumulador 4x pra ter o número certo do algarismo
+    RAR
+    RAR
+    RAR
+    LXI H, 0001H        ; direcionamos M para 0001H
+    MOV M, A            ; salvamos na memória o valor da dezena do minuto
+    CPI 00H             ; comparamos com 00H
+    JZ dM0              ; zeramos o display
+    LXI H, EndDigito
+find_dezM:
+    INX H               ; caminhamos entre os dígitos de 7 segmentos até chegar no número que precisamos
+    DCR A               ; A-1
+    JNZ find_dezM          ; se for zero, estamos no algarismo certo, senão, continuamos caminhando
+    MOV A, M            ; movemos o valor HEX que equivale ao algarismo para o acumulador
+    OUT 00H             ; salvamos na porta de saída da unidade do minuto
+    JMP turnoff
     
+uS0:
+    LXI B, EndDigito
+    LDAX B
+    OUT 03H
+    JMP readDS
+
+dS0:
+    LXI D, EndDigito
+    LDAX D
+    OUT 02H
+    JMP readUM
+
+uM0:
+    MVI A, 77H
+    OUT 01H
+    JMP readDM
+
+dM0:
+    MVI A, 77H
+    OUT 00H
+    JMP turnoff
