@@ -45,18 +45,18 @@
 	DB digit0, digit1, digit2, digit3, digit4
 	DB digit5, digit6, digit7, digit8, digit9	
 
-.org 0000H
+.org 0005H
     JMP zerar           ; programa começa colocando 00:00
 
 turnoff:
-    LXI H, 0A03H        ; apontamos pro sinalizador de on/off
+    LXI H, 0002H        ; apontamos pro sinalizador de on/off
     MVI M, 00H          ; sinalizamos que o cronômetro está desligado
 stdby:
     JMP stdby           ; pula para si mesmo infinitamente
 
 check:
     EI
-    LXI H, 0A03H        ; apontamos M para a coordenada 0A03H
+    LXI H, 0002H        ; apontamos M para a coordenada 0002H
     MVI A, 00H          ; A = 0
     CMP M               ; comparamos M com A
     JZ start            ; se M = 0, significa que o cronômetro não estava rodando, então, começamos
@@ -189,7 +189,7 @@ start:
 
 check7:
     EI
-    LXI H, 0A03H        ; apontamos M para a coordenada 0A03H
+    LXI H, 0002H        ; apontamos M para a coordenada 0002H
     MVI A, 00H          ; A = 0
     CMP M               ; comparamos M com A
     JZ reverse            ; se M = 0, significa que o cronômetro não estava rodando, então, começamos
