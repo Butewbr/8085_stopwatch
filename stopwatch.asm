@@ -23,29 +23,6 @@
 ;       * Quando o cronômetro progressivo chegar em 59:59 ou o regressivo chegar em 00:00 fica a critério do programador decidir o que fazer (parar o cronômetro ou recomeçar a contagem).
 ;   5. Antes de atualizar o dígito da unidade de segundo, o programa deverá passar por uma sub-rotina que insere um delay de, aproximadamente, 1 ms.
 ;       * Para fins de cálculo, considere um clock com frequência de 2 MHz.
-; Resumo dos passos:
-; Cronômetro:
-; Para criar a funcionalidade do cronômetro, foram definidas variáveis para auxiliar na busca dos dígitos do display de 7 segmentos. Usando .define no início do programa, foram definidas veriáveis para cada dígito e seu respectivo valor HEX, assim como endereços chave de funcionamento do programa. Os dígitos, então, são salvos entre os endereços A000H e A009H a partir do comando DB.
-; Segundos:
-; Unidade:
-; Para a contagem da unidade dos segundos, o par de registradores BC foi utilizado. O par apontará para o endereço em que o respectivo dígito HEX do display de 7 segmentos condiz com o valor da unidade do segundo. Por exemplo: se o cronômetro marca 2 segundos na unidade, o par de registradores BC terá o valor A002H, referente ao endereço do dígito HEX 3EH (2 no display).
-; A cada passagem no loop, faz-se a comparação do valor da coordenada indicada pelo par BC com o valor 4FH (dígito 9 no display), para verificiar se o valor máximo da unidade foi atingido. Se foi, o programa adiciona +1 à dezena dos segundos e zera o valor da unidade, colocando o valor de BC como A000H.
-; Dezena:
-; A casa da dezena dos segundos seguiu um processo similar à casa das unidades, desta vez, com o par de registradores DE. A diferença é que verifica-se o valor máximo como 6BH (dígito 5 no display). Caso o valor máximo de 5 for atingido e temos que incrementar, passa-se ao incremento do minuto. 
-; Minutos:
-; Para os minutos, como não haviam registradores sobrando, um método diferente foi abordado. Usando do fato de que cada delay termina com o par HL em 0000H, é possível prontamente acessar os valores deste endereço a partir de M. Assim, os valores salvos em 0000H foram usados para indicar a unidade de minutos e o endereço 0001H para a dezena.
-; Depois, para salvar os dígitos no display, o par HL é redirecionado para A000H (onde estão armazenados os dígitos HEX). Em seguida, é feito um loop com base nos valores salvos em 0000H e 0001H para unidade e dezena respectivamente até que o par HL esteja no algarismo correto. Este, pois, é salvo na respectiva porta de saída. Finalmente, são zerados os valores dos segundos.
-; Funcionalidade do Interruptor TRAP:
-; A funcionalidade do interruptor TRAP implica que o programa ou pare ou inicie a contagem ascendente. A fim de saber se o cronômetro está ativo ou inativo, sempre que a contagem for iniciada, tanto de forma progressiva quanto regressiva, o valor 01H é salvo no endereço 0002H da memória. Analogamente, quando o sistema é parado, salva-se 00H neste endereço. Sempre que o interruptor TRAP é ativado, então, faz-se uma verificação de qual valor está guardado em 0002H. Com base nisso, o programa inicia ou para.
-; Funcionalidade do Interruptor 7.5:
-; Quando o interruptor 7.5 for ativado, a contagem é feita de forma decrescente, isto é, o temporizador agora funciona como um timer. Para isso, métodos parecidos com a contagem crescente foram utilizados, com pequenas alterações para diminuir os valores ao invés de aumentá-los.
-; Funcionalidade do Interruptor 6.5:
-; O problema pede que os valores das portas de entrada 00H e 01H sejam lidas e seus *dígitos* substituam os do display para os segundos e minutos, respectivamente. Por exemplo, se a porta de entrada 00H possui o valor 57H, deve ser salvo no display dos segundos 57.
-; O desafio aqui é transformar um valor HEX em decimal sem uma conversão. Para isso, foi utilizado o comando ANI (ANd Immediate with Accumulator) para selecionar apenas os valores de unidade/dezena. Para selecionar o número das unidades, faz-se ANI 0FH, de forma que os 4 primeiros dígitos binários do valor HEX sejam anulados. Para a dezena, usa-se ANI F0H, anulando os 4 últimos dígitos binários. Em seguida, nas dezenas, rotaciona-se o valor binário quatro vezes, para que o algarismo da dezena seja salvo.
-; Funcionalidade do Interruptor 5.5:
-; Quando o interruptor 5.5 é ativado, os valores do display devem ser zerados. Para os segundos, os pares de registradores BC e DE foram simplesmente redirecionados ao endereço de memória do dígito 0. Para os minutos, são armazenados nos endereços de memória 0000H e 0001H o valor 00H. Em todas as portas de saída do display (00H-03H), são salvos o valor 77H, referente ao dígito 0.
-; ## 59:59 e 00:00
-; Se o cronômetro atingir 59:59 na contagem progressiva ou 00:00 na regressiva, o temporizador entra no modo standby.
 
 .define
     EndDigito A000H     ; definir endereço do valor HEX para 0
