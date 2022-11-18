@@ -1,4 +1,4 @@
-; bernardo_pandolfi_costa_stopwatch.asm
+; stopwatch.asm
 ;
 ; Title: Stopwatch
 ;
