@@ -23,149 +23,169 @@
 ;       * Quando o cronômetro progressivo chegar em 59:59 ou o regressivo chegar em 00:00 fica a critério do programador decidir o que fazer (parar o cronômetro ou recomeçar a contagem).
 ;   5. Antes de atualizar o dígito da unidade de segundo, o programa deverá passar por uma sub-rotina que insere um delay de, aproximadamente, 1 ms.
 ;       * Para fins de cálculo, considere um clock com frequência de 2 MHz.
-; 
 ; Resumo dos passos:
+; Cronômetro:
+; Para criar a funcionalidade do cronômetro, foram definidas variáveis para auxiliar na busca dos dígitos do display de 7 segmentos. Usando .define no início do programa, foram definidas veriáveis para cada dígito e seu respectivo valor HEX, assim como endereços chave de funcionamento do programa. Os dígitos, então, são salvos entre os endereços A000H e A009H a partir do comando DB.
+; Segundos:
+; Unidade:
+; Para a contagem da unidade dos segundos, o par de registradores BC foi utilizado. O par apontará para o endereço em que o respectivo dígito HEX do display de 7 segmentos condiz com o valor da unidade do segundo. Por exemplo: se o cronômetro marca 2 segundos na unidade, o par de registradores BC terá o valor A002H, referente ao endereço do dígito HEX 3EH (2 no display).
+; A cada passagem no loop, faz-se a comparação do valor da coordenada indicada pelo par BC com o valor 4FH (dígito 9 no display), para verificiar se o valor máximo da unidade foi atingido. Se foi, o programa adiciona +1 à dezena dos segundos e zera o valor da unidade, colocando o valor de BC como A000H.
+; Dezena:
+; A casa da dezena dos segundos seguiu um processo similar à casa das unidades, desta vez, com o par de registradores DE. A diferença é que verifica-se o valor máximo como 6BH (dígito 5 no display). Caso o valor máximo de 5 for atingido e temos que incrementar, passa-se ao incremento do minuto. 
+; Minutos:
+; Para os minutos, como não haviam registradores sobrando, um método diferente foi abordado. Usando do fato de que cada delay termina com o par HL em 0000H, é possível prontamente acessar os valores deste endereço a partir de M. Assim, os valores salvos em 0000H foram usados para indicar a unidade de minutos e o endereço 0001H para a dezena.
+; Depois, para salvar os dígitos no display, o par HL é redirecionado para A000H (onde estão armazenados os dígitos HEX). Em seguida, é feito um loop com base nos valores salvos em 0000H e 0001H para unidade e dezena respectivamente até que o par HL esteja no algarismo correto. Este, pois, é salvo na respectiva porta de saída. Finalmente, são zerados os valores dos segundos.
+; Funcionalidade do Interruptor TRAP:
+; A funcionalidade do interruptor TRAP implica que o programa ou pare ou inicie a contagem ascendente. A fim de saber se o cronômetro está ativo ou inativo, sempre que a contagem for iniciada, tanto de forma progressiva quanto regressiva, o valor 01H é salvo no endereço 0002H da memória. Analogamente, quando o sistema é parado, salva-se 00H neste endereço. Sempre que o interruptor TRAP é ativado, então, faz-se uma verificação de qual valor está guardado em 0002H. Com base nisso, o programa inicia ou para.
+; Funcionalidade do Interruptor 7.5:
+; Quando o interruptor 7.5 for ativado, a contagem é feita de forma decrescente, isto é, o temporizador agora funciona como um timer. Para isso, métodos parecidos com a contagem crescente foram utilizados, com pequenas alterações para diminuir os valores ao invés de aumentá-los.
+; Funcionalidade do Interruptor 6.5:
+; O problema pede que os valores das portas de entrada 00H e 01H sejam lidas e seus *dígitos* substituam os do display para os segundos e minutos, respectivamente. Por exemplo, se a porta de entrada 00H possui o valor 57H, deve ser salvo no display dos segundos 57.
+; O desafio aqui é transformar um valor HEX em decimal sem uma conversão. Para isso, foi utilizado o comando ANI (ANd Immediate with Accumulator) para selecionar apenas os valores de unidade/dezena. Para selecionar o número das unidades, faz-se ANI 0FH, de forma que os 4 primeiros dígitos binários do valor HEX sejam anulados. Para a dezena, usa-se ANI F0H, anulando os 4 últimos dígitos binários. Em seguida, nas dezenas, rotaciona-se o valor binário quatro vezes, para que o algarismo da dezena seja salvo.
+; Funcionalidade do Interruptor 5.5:
+; Quando o interruptor 5.5 é ativado, os valores do display devem ser zerados. Para os segundos, os pares de registradores BC e DE foram simplesmente redirecionados ao endereço de memória do dígito 0. Para os minutos, são armazenados nos endereços de memória 0000H e 0001H o valor 00H. Em todas as portas de saída do display (00H-03H), são salvos o valor 77H, referente ao dígito 0.
+; ## 59:59 e 00:00
+; Se o cronômetro atingir 59:59 na contagem progressiva ou 00:00 na regressiva, o temporizador entra no modo standby.
 
 .define
-    EndDigito A000H
-    StartDigito A009H
-    DigitoCinco A005H
-	digit0 77H	        ; Valor hex para o display mostrar o digit 0
-	digit1 44H		    ; Valor hex para o display mostrar o digit 1
-	digit2 3EH		    ; Valor hex para o display mostrar o digit 2
-	digit3 6EH		    ; Valor hex para o display mostrar o digit 3
-	digit4 4DH		    ; Valor hex para o display mostrar o digit 4
-	digit5 6BH		    ; Valor hex para o display mostrar o digit 5
-	digit6 7BH		    ; Valor hex para o display mostrar o digit 6
-	digit7 46H		    ; Valor hex para o display mostrar o digit 7
-	digit8 7FH		    ; Valor hex para o display mostrar o digit 8
-	digit9 4FH		    ; Valor hex para o display mostrar o digit 9
+    EndDigito A000H     ; definir endereço do valor HEX para 0
+    StartDigito A009H   ; definir o endereço do valor HEX para 9
+    DigitoCinco A005H   ; definir o endereço do valor HEX para 5
+	digit0 77H	        ; valor HEX do algarismo 0 no display
+	digit1 44H		    ; valor HEX do algarismo 1 no display
+	digit2 3EH		    ; valor HEX do algarismo 2 no display
+	digit3 6EH		    ; valor HEX do algarismo 3 no display
+	digit4 4DH		    ; valor HEX do algarismo 4 no display
+	digit5 6BH		    ; valor HEX do algarismo 5 no display
+	digit6 7BH		    ; valor HEX do algarismo 6 no display
+	digit7 46H		    ; valor HEX do algarismo 7 no display
+	digit8 7FH		    ; valor HEX do algarismo 8 no display
+	digit9 4FH		    ; valor HEX do algarismo 9 no display
 
-.data EndDigito		    ; Salvando os valores hex no endereço indicado
+.data EndDigito		    ; salvamos os endereços com seus respectivos algarismos
 	DB digit0, digit1, digit2, digit3, digit4
 	DB digit5, digit6, digit7, digit8, digit9	
 
-.org 0005H
-    JMP zerar           ; programa começa colocando 00:00
+.org 0005H              ; programa começa em 0005H
+    JMP zerar           ; coloca 00:00 no display
 
-turnoff:
+turnoff:                ; sub-rotina de parada
     LXI H, 0002H        ; apontamos pro sinalizador de on/off
     MVI M, 00H          ; sinalizamos que o cronômetro está desligado
-stdby:
+stdby:                  ; sub-rotina de loop infinito
     JMP stdby           ; pula para si mesmo infinitamente
 
-check:
-    EI
+check:                  ; sub-rotina de checagem se o temporizador estava ou não rodando
+    EI                  ; reabilitamos as interrupções
     LXI H, 0002H        ; apontamos M para a coordenada 0002H
-    MVI A, 00H          ; A = 0
+    MVI A, 00H          ; zeramos o acumulador
     CMP M               ; comparamos M com A
-    JZ start            ; se M = 0, significa que o cronômetro não estava rodando, então, começamos
+    JZ start            ; se M = 0, significa que o cronômetro não estava rodando, então, iniciamos ele
     MVI M, 00H          ; se não for zero, o cronômetro estava rodando, então paramos e colocamos M = 0 na coordenada para indicar que a próxima ativação da interrupção TRAP é para começar
     JMP stdby           ; pula para o standby
 
-.org 0024H              ; quando o TRAP for ativado, começar a contagem
-    JMP check           ; tive que criar uma label para a checagem ao invés de fazer aqui porque as instruções chegavam até a coordenada 002CH, conflitando com o código do RST 5.5
+.org 0024H              ; quando o TRAP for ativado, começar a contagem progressiva ou parar o relógio
+    JMP check           ; pula para a checagem de rodando/desligado
 
 .org 002CH              ; o programa zera tudo na coordenada 002CH (do RST 5.5) e para
-    JMP zerar
+    JMP zerar           ; saltamos para a sub-rotina de zerar
 
 .org 0034H              ; o programa lê os valores dos cronômetros na coordenada 0034H (do RST 6.5)
-    JMP readUS
+    JMP readUS          ; saltamos para a sub-rotina de leitura
 
 .org 003CH              ; programa para o RST 7.5
     JMP check7          ; pulamos para checagem de se o cronômetro está ou não ligado
 
-zerar:
+zerar:                  ; subtrotina para zerar o display
     EI                  ; reabilitar interruptores
     MVI A, digit0       ; colocamos o dígito 0 do display de 7 segmentos
     OUT 00H             ; salvamos o 0 em todos os dígitos do display
     OUT 01H             ; salvamos o 0 em todos os dígitos do display
     OUT 02H             ; salvamos o 0 em todos os dígitos do display
     OUT 03H             ; salvamos o 0 em todos os dígitos do display
-    LXI B, EndDigito    ; Par de registradores BC utilizado para o d�gito de unidade
-	LXI D, EndDigito	; Par de registradores DE utilizado para o d�gito da dezena
+    LXI B, EndDigito    ; o par de registradores BC é utilizado para o dígito da unidade
+	LXI D, EndDigito	; o par de registradores DE é utilizado para o dígito da dezena
     
-    MVI A, 00H
+    MVI A, 00H          ; zeramos o acumulador
     STA 0000H           ; resetando unidade de minutos
     STA 0001H           ; resetando dezena de minutos
     
-    LDA EndDigito
-    JMP turnoff
+    JMP turnoff         ; desligamos o cronômetro
 
-delay:
-    MVI H, FFH
+delay:                  ; sub-rotina de delay de 1 s
+    MVI H, FFH          ; H=FFH
 delay2:
-    MVI L, FFH
+    MVI L, FFH          ; L=FFH
 delay1:
-    NOP
-    NOP
-    NOP
-    NOP
-    DCR L
-    JNZ delay1
-    DCR H
-    JNZ delay2
+    NOP                 ; delay
+    NOP                 ; delay
+    NOP                 ; delay
+    NOP                 ; delay
+    DCR L               ; L-1
+    JNZ delay1          ; se L não for zero repetimos o processo
+    DCR H               ; se L=0, fazemos H-1 e reiniciamos o loop do L
+    JNZ delay2          ; se H=0 terminamos o delay de 1 s
 
-segunid:
+segunid:                ; sub-rotina de aumento da unidade de segundo (segunid = Segundo Unidade)
     LDAX B		        ; colocamos no acumulador o valor na coordenada de B
-    CPI digit9          ; Comparar com o valor hex para 9
-    JZ segdez	        ; Se zero, incrementar o d�gito da dezena
-	INX B			    ; Par BC apontar para o pr�ximo digito
+    CPI digit9          ; comparamos com o dígito 9 do display
+    JZ segdez	        ; se a comparação der 0 (os dois forem iguais), precisamos incrementar a dezena
+	INX B			    ; se não for 9, incrementamos em 1 a unidade
 
-    MVI A, 6EH          ; para o delay de 1 ms:
-    minidelay:  
-    DCR A
-    NOP
-    JNZ minidelay
-    NOP
-    NOP
-    NOP
-    NOP
+    MVI A, 6EH          ; para o delay de 1 ms, A=6EH
+minidelay:              ; sub-rotina de delay de 1 ms
+    DCR A               ; A-1
+    NOP                 ; delay
+    JNZ minidelay       ; se A-1 não zerar, repetimos o processo
+    NOP                 ; delay
+    NOP                 ; delay
+    NOP                 ; delay
+    NOP                 ; delay
 
-	LDAX B		
-	OUT 03H		
-    JMP delay
+	LDAX B		        ; depois do delay de 1 ms, lemos o novo valor da unidade
+	OUT 03H		        ; salvamos no display
+    JMP delay           ; retornamos ao delay de 1 s
 
-segdez:
-	LDAX D
-	CPI digit5	        ; Comparar com o valor hex do d�gito 5
-	JZ minunid		
-    LXI B, EndDigito	; Resetar o endere�o apontado pelo par BC
-	LDAX B	
-	OUT 03H		
-	INX D			    ; Par DE apontar para o pr�ximo d�gito
-	LDAX D		
-	OUT 02H		
-    JMP delay
+segdez:                 ; sub-rotina de aumento da dezena de segundo (segdez = Segundo Dezena)
+	LDAX D              ; colocamos no acumulador o valor apontado por DE
+	CPI digit5	        ; comparamos com o dígito máximo 5
+	JZ minunid		    ; se for 5, temos que incrementar a unidade de minuto
+    LXI B, EndDigito	; resetamos o contador de dezena de segundo
+	LDAX B	            ; colocamos o dígito 0 no acumulador
+	OUT 03H		        ; salvamos no display
+	INX D			    ; par DE aponta para o próximo dígito da dezena de segundo
+	LDAX D		        ; lemos o dígito da dezena
+	OUT 02H		        ; salvamos no display
+    JMP delay           ; retornamos ao delay de 1 s
 
-minunid:
+minunid:                ; sub-rotina de aumento de unidade de minuto (minunid = Minuto Unidade)
     MOV A, M            ; A = M
     CPI 09H             ; comparamos com 09H
-    JZ mindez
+    JZ mindez           ; se for 9, precismamos incrementar a dezena de minuto
     INR M               ; incrementa o que tá em 0000H
     MOV A, M            ; bota o valor de M em A
     LXI H, EndDigito    ; apontamos HL para os dígitos
-qtmin:
+qtmin:                  ; sub-rotina para descobrirmos a quantidade de minutos que estamos (qtmin = Quantidade de Minutos)
     INX H               ; caminhamos entre os dígitos de 7 segmentos até chegar no número que precisamos
     DCR A               ; A-1
     JNZ qtmin           ; se for zero, estamos no algarismo certo, senão, continuamos caminhando
     MOV A, M            ; movemos o valor HEX que equivale ao algarismo para o acumulador
     OUT 01H             ; salvamos na porta de saída da unidade do minuto
 
-secres:
-    LXI D, EndDigito    ; Resetar o endere�o apontado pelo par DE
-	LDAX D		
-	OUT 02h
-    LXI B, EndDigito
-    LDAX B
-    OUT 03H
-    JMP delay
+secres:                 ; subrotina para zerar os segundos (secres = Seconds Reset)
+    LXI D, EndDigito    ; resetamos o par DE para apontar ao dígito 0
+	LDAX D		        ; lemos o valor de DE
+	OUT 02h             ; salvamos no display
+    LXI B, EndDigito    ; resetamos o par BC para apontar ao dígito 0
+    LDAX B              ; lemos o valor de BC
+    OUT 03H             ; salvamos no display
+    JMP delay           ; retornamos ao delay
 
-mindez:
+mindez:                 ; sub-rotina de aumento da dezena de minuto (mindez = Minuto Dezena)
     INX H               ; apontamos HL pra 0001H (onde guardamos o valor das dezenas de minutos)
     MOV A, M            ; A = valor das dezenas
     CPI 05H             ; comparamos com 5 pra ver se chegamos em 60 min
-    JZ turnoff             ; se M=5, chegamos em 1h
+    JZ turnoff          ; se M=5, chegamos em 1h
     INR M               ; acrescentamos em 1 o valor das dezenas
     DCX H               ; voltamos ao valor da unidade de minuto
     MVI M, 00H          ; zeramos a unidade dos minutos
@@ -173,22 +193,22 @@ mindez:
     OUT 01H             ; zeramos no display a unidade de minuto
     INX H               ; apontamos HL para 0001H (onde guardaremos o valor das dezenas de minutos)
     MOV A, M            ; movemos a quantidade da dezena de minuto ao acumulador
-    LXI H, EndDigito
-qtdmin:
-    INX H
-    DCR A
-    JNZ qtdmin
-    MOV A, M
-    OUT 00H
-    JMP secres
+    LXI H, EndDigito    ; apontamos HL para os dígitos HEX do display
+qtdmin:                 ; sub-rotina para descobrirmos a quantidade de dezenas minutos que estamos (qtdmin = Quantidade de Dezenas de Minutos)
+    INX H               ; caminhamos entre os dígitos de 7 segmentos até chegar no número que precisamos
+    DCR A               ; A-1
+    JNZ qtdmin          ; se for zero estamos no algarismo certo, senão, continuamos caminhando
+    MOV A, M            ; movemos o valor HEX que equivale ao algarismo para o acumulador
+    OUT 00H             ; salvamos na porta de saída da dezena do minuto
+    JMP secres          ; resetamos os segundos
 
 
-start:
+start:                  ; sub-rotina de começar contagem
     MVI M, 01H          ; sinalizamos que o cronômetro está ligado
-    JMP delay
+    JMP delay           ; pula para o delay de 1 s
 
-check7:
-    EI
+check7:                 ; as labels que possuem 7 na nomeação representam os comandos de contagem reversa, ligados ao interruptor 7.5
+    EI                  ; reabilitamos os interruptores
     LXI H, 0002H        ; apontamos M para a coordenada 0002H
     MVI A, 00H          ; A = 0
     CMP M               ; comparamos M com A
@@ -198,53 +218,53 @@ check7:
 
 reverse:
     MVI M, 01H          ; sinalizamos que o cronômetro está ligado
-    JMP delay7
+    JMP delay7          ; pulamos para o delay de 1 s do loop reverso
 
-delay7:
-    MVI H, FFH
+delay7:                 ; sub-rotina de delay de 1 s
+    MVI H, FFH          ; H=FFH
 delay72:
-    MVI L, FFH
+    MVI L, FFH          ; L=FFH
 delay71:
-    NOP
-    NOP
-    NOP
-    NOP
-    DCR L
-    JNZ delay71
-    DCR H
-    JNZ delay72
+    NOP                 ; delay
+    NOP                 ; delay
+    NOP                 ; delay
+    NOP                 ; delay
+    DCR L               ; L-1
+    JNZ delay71         ; se L não for zero repetimos o processo
+    DCR H               ; se L=0, fazemos H-1 e reiniciamos o loop do L
+    JNZ delay72         ; se H=0 terminamos o delay de 1 s
 
 segunid7:
     LDAX B		        ; colocamos no acumulador o valor na coordenada de B
-    CPI digit0          ; Comparar com o valor hex para 0
-    JZ segdez7	        ; Se zero, decrementar o d�gito da dezena
-	DCX B			    ; Par BC apontar para o  dígito anterior
+    CPI digit0          ; comparamos com o dígito HEX 0
+    JZ segdez7	        ; se for zero, precisamos decrementar da dezena
+	DCX B			    ; se não for zero, apontamos BC para o dígito anterior
 
     MVI A, 6EH          ; para o delay de 1 ms
 minidelay7:  
-    DCR A
-    NOP
-    JNZ minidelay7
-    NOP
-    NOP
-    NOP
-    NOP
+    DCR A               ; A-1
+    NOP                 ; delay
+    JNZ minidelay7      ; se A não zerar, repetimos o processo
+    NOP                 ; delay
+    NOP                 ; delay
+    NOP                 ; delay
+    NOP                 ; delay
 
-    LDAX B		
-	OUT 03H		
-    JMP delay7
+    LDAX B		        ; lemos o valor apontado por BC
+	OUT 03H		        ; salvamos na unidade de segundo
+    JMP delay7          ; retornamos ao delay de 1 s
 
 segdez7:
-	LDAX D
-	CPI digit0	        ; Comparar com o valor hex do d�gito 0
+	LDAX D              ; lemos o valor apontado por DE
+	CPI digit0	        ; comparamos com o dígito HEX 0
 	JZ minunid7		    ; se for zero decrementar o dígito do minuto
-    LXI B, StartDigito	; Resetar o endere�o apontado pelo par BC
-	LDAX B	
-	OUT 03H		
-	DCX D			    ; Par DE apontar para o dígito anterior
-	LDAX D		
-	OUT 02H		
-    JMP delay7
+    LXI B, StartDigito	; resetamos as unidades, apontando para o dígito 9
+	LDAX B	            ; lemos o dígito 9
+	OUT 03H		        ; salvamos no display
+	DCX D			    ; fazemos o par DE apontar ao dígito anterior
+	LDAX D		        ; lemos o valor
+	OUT 02H		        ; salvamos no display
+    JMP delay7          ; retornamos ao loop
 
 minunid7:
     MOV A, M            ; A = M
@@ -256,8 +276,8 @@ minunid7:
     CPI 00H             ; checamos se M agora é zero
     JNZ qtmin7          ; se não for, salvamos os dígitos normalmente
     MVI A, digit0       ; se for, colocamos 0 na unidade de minuto
-    OUT 01H
-    JMP secres7
+    OUT 01H             ; salvamos no display
+    JMP secres7         ; resetamos os segundos
 qtmin7:
     INX H               ; caminhamos entre os dígitos de 7 segmentos até chegar no número que precisamos
     DCR A               ; A-1
@@ -266,13 +286,13 @@ qtmin7:
     OUT 01H             ; salvamos na porta de saída da unidade do minuto
 
 secres7:
-    LXI D, DigitoCinco    ; Resetar o endere�o apontado pelo par DE
-	LDAX D		
-	OUT 02h
-    LXI B, StartDigito
-    LDAX B
-    OUT 03H
-    JMP delay7
+    LXI D, DigitoCinco  ; apontamos o par DE ao dígito 5
+	LDAX D		        ; lemos o dígito apontado por DE
+	OUT 02h             ; salvamos na dezena de segundos
+    LXI B, StartDigito  ; apontamos BC para o dígito 9
+    LDAX B              ; lemos o dígito apontado por BC
+    OUT 03H             ; salvamos na unidade de segundos
+    JMP delay7          ; retornamos ao delay
 
 mindez7:
     INX H               ; apontamos HL pra 0001H (onde guardamos o valor das dezenas de minutos)
@@ -290,48 +310,48 @@ mindez7:
     CPI 00H             ; checamos se M agora é zero
     JNZ qtdmin7         ; se não for, salvamos os dígitos normalmente
     MVI A, digit0       ; se for, colocamos 0 na unidade de minuto
-    OUT 00H
+    OUT 00H             ; salvamos no display
     JMP secres7         ; voltamos ao loop
 qtdmin7:
-    INX H
-    DCR A
-    JNZ qtdmin7
-    MOV A, M
-    OUT 00H
-    JMP secres7
+    INX H               ; caminhamos entre os dígitos de 7 segmentos até chegar no número que precisamos
+    DCR A               ; A-1
+    JNZ qtdmin7         ; se for zero estamos no algarismo certo, senão, continuamos caminhando
+    MOV A, M            ; movemos o valor HEX que equivale ao algarismo para o acumulador
+    OUT 00H             ; salvamos na porta de saída da dezena do minuto
+    JMP secres7         ; resetamos os segundos
 
-readUS:
-    EI
+readUS:                 ; sub-rotina de leitura da unidade de segundos
+    EI                  ; reabilitamos os interruptores
     IN 00H              ; lemos o que foi salvo na porta de entrada 00H
     ANI 0FH             ; fazendo AND 0FH, salvamos no acumulador apenas o algarismo das unidades
     CPI 00H             ; comparamos com 00H
-    JZ uS0              ; se for 0 salvamos 0
+    JZ uS0              ; se for 0, salvamos 0
     LXI B, EndDigito    ; apontamos BC para o dígito 0
 find_unitS:
     INX B               ; vamos ao próximo dígito HEX
     DCR A               ; decrementamos o acumulador
-    JNZ find_unitS       ; se não for zero, ainda temos que caminhar
+    JNZ find_unitS      ; se não for zero, ainda temos que caminhar
     LDAX B              ; salvamos no acumulador o valor HEX do número dado
-    OUT 03H
+    OUT 03H             ; salvamos no display
 
-readDS:
+readDS:                 ; sub-rotina de leitura da dezena de segundos
     IN 00H              ; lemos o que foi salvo na porta de entrada 00H
     ANI F0H             ; fazendo AND F0H, salvamos no acumulador apenas o algarismo das dezenas
     RAR                 ; rotacionamos pra direita o acumulador 4x pra ter o número certo do algarismo
     RAR
     RAR
     RAR
-    CPI 00H
-    JZ dS0
+    CPI 00H             ; comparamos com 0
+    JZ dS0              ; se for 0, salvamos 0
     LXI D, EndDigito    ; apontamos BC para o dígito 0
 find_dezS:
     INX D               ; vamos ao próximo dígito HEX
     DCR A               ; decrementamos o acumulador
     JNZ find_dezS       ; se não for zero, ainda temos que caminhar
     LDAX D              ; salvamos no acumulador o valor HEX do número dado
-    OUT 02H
+    OUT 02H             ; salvamos no display
 
-readUM:    
+readUM:                 ; sub-rotina de leitura de unidade de minuto
     IN 01H              ; lemos o que foi salvo na porta de entrada 01H
     ANI 0FH             ; fazendo AND 0FH, salvamos no acumulador apenas o algarismo das unidades
     LXI H, 0000H        ; direcionamos M para 0000H
@@ -342,11 +362,11 @@ readUM:
 find_unitM:
     INX H               ; caminhamos entre os dígitos de 7 segmentos até chegar no número que precisamos
     DCR A               ; A-1
-    JNZ find_unitM          ; se for zero, estamos no algarismo certo, senão, continuamos caminhando
+    JNZ find_unitM      ; se for zero, estamos no algarismo certo, senão, continuamos caminhando
     MOV A, M            ; movemos o valor HEX que equivale ao algarismo para o acumulador
     OUT 01H             ; salvamos na porta de saída da unidade do minuto
 
-readDM:
+readDM:                 ; sub-rotina de leitura da dezena de minuto
     IN 01H              ; lemos o que foi salvo na porta de entrada 01H
     ANI F0H             ; fazendo AND F0H, salvamos no acumulador apenas o algarismo das dezenas
     RAR                 ; rotacionamos pra direita o acumulador 4x pra ter o número certo do algarismo
@@ -361,29 +381,29 @@ readDM:
 find_dezM:
     INX H               ; caminhamos entre os dígitos de 7 segmentos até chegar no número que precisamos
     DCR A               ; A-1
-    JNZ find_dezM          ; se for zero, estamos no algarismo certo, senão, continuamos caminhando
+    JNZ find_dezM       ; se for zero, estamos no algarismo certo, senão, continuamos caminhando
     MOV A, M            ; movemos o valor HEX que equivale ao algarismo para o acumulador
     OUT 00H             ; salvamos na porta de saída da unidade do minuto
-    JMP turnoff
+    JMP turnoff         ; desligamos o contador
     
-uS0:
-    LXI B, EndDigito
-    LDAX B
-    OUT 03H
-    JMP readDS
+uS0:                    ; unidade de segundo = 0
+    LXI B, EndDigito    ; redirecionamos BC para o dígito 0
+    LDAX B              ; lemos o valor de BC
+    OUT 03H             ; salvamos no display
+    JMP readDS          ; voltamos para ler a dezena de segundo
 
-dS0:
-    LXI D, EndDigito
-    LDAX D
-    OUT 02H
-    JMP readUM
+dS0:                    ; dezena de segundo = 0
+    LXI D, EndDigito    ; redirecionamos DE para o dígito 0
+    LDAX D              ; lemos o valor de DE
+    OUT 02H             ; salvamos no display
+    JMP readUM          ; voltamos para ler a unidade de minuto
 
-uM0:
-    MVI A, 77H
-    OUT 01H
-    JMP readDM
+uM0:                    ; unidade de minuto = 0
+    MVI A, digit0       ; A=77H (referente ao dígito 0 no display)
+    OUT 01H             ; salvamos no display
+    JMP readDM          ; voltamos para ler a dezena de minuto
 
-dM0:
-    MVI A, 77H
-    OUT 00H
-    JMP turnoff
+dM0:                    ; dezena de minuto = 0
+    MVI A, digit0       ; A=77H (referente ao dígito 0 no display)
+    OUT 00H             ; salvamos no display
+    JMP turnoff         ; desligamos o contador
